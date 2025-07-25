@@ -3,6 +3,7 @@ from typing import Tuple
 from flask import Flask, g, jsonify, request, session, Response
 from db import create_database, LocalSession
 from models import Project, User, Feature, Task, Note
+from sqlalchemy.orm import selectinload
 from auth import Authenticator
 
 
@@ -143,14 +144,48 @@ def login() -> Tuple[Response, int]:
 def health():
     return {"status": "healthy"}
 
-@app.route("/projects", methods=['GET'])
+@app.route("/user/dashboard", methods=['GET'])
 @Authenticator.authenticate_session
-def view_projects() -> Tuple[Response, int]:
+def load_user_dashboard() -> Tuple[Response, int]:
     try:
         user_id = session['user_id']
-        projects = g.db.query(Project).filter(Project.parent_userid == user_id).all()
-        return (
-            jsonify([{'id': p.id, 'name': p.name, 'desc': p.description} for p in projects]),
+        #eager load user dashboard data
+        projects = g.db.query(Project).options(
+        selectinload(Project.feature_list)
+        .selectinload(Feature.task_list)
+        .selectinload(Task.work_notes)
+    ).filter(Project.parent_userid == user_id).all()
+        
+        dashboard_data = []
+        for project in projects:
+            feature_list = []
+            project_dict = dict(id=project.id, name=project.name, description=project.description, progress=project.progress)
+            
+            for feature in project.feature_list:
+                task_list = []
+                feature_dict = dict(id=feature.id, name=feature.name, description=feature.description, progress=feature.progress)
+                
+                for task in feature.task_list:
+                    note_list = []
+                    task_dict = dict(id=task.id, name=task.name, points=task.points, completed=task.completed)
+                    
+                    for note in task.work_notes:
+                        note_dict = dict(id=note.id, content=note.content, created_at=task.created_at)
+                        note_list.append(note_dict)
+                    
+                    task_dict['notes'] = note_list
+                    task_list.append(task_dict)
+
+                feature_dict['tasks'] = task_list
+                feature_list.append(feature_dict)
+
+            project_dict['features'] = feature_list
+            dashboard_data.append(project_dict)
+
+                
+
+        return (    
+            jsonify({"projects": dashboard_data}),
             200
         )
     except Exception as e:
@@ -213,7 +248,8 @@ def delete_project(project_id) -> Tuple[Response, int]:
 @Authenticator.authenticate_session
 def get_project_features(project_id) -> Tuple[Response, int]:
     try:
-        project = g.db.query(Project).filter(Project.id == project_id).first()
+        user_id = session['user_id']
+        project = g.db.query(Project).filter(Project.id == project_id).filter(Project.parent_userid == user_id).first()
         feature_list = [{'id':f.id, 'name':f.name, 'description':f.description} for f in project.feature_list]
         if not project:
             return (
@@ -236,6 +272,7 @@ def add_feature_to_project(project_id) -> Tuple[Response, int]:
     data = request.get_json()
 
     try:
+
         feature = Feature(
             name=data['name'],
             project_id=project_id,
@@ -253,5 +290,6 @@ def add_feature_to_project(project_id) -> Tuple[Response, int]:
             jsonify({'error': str(e)}),
             400
         )
+
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
