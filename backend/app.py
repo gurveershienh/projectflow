@@ -139,6 +139,21 @@ def login() -> Tuple[Response, int]:
             400
         ) 
 
+@app.route('/logout', methods=['POST'])
+@Authenticator.authenticate_session
+def logout() -> Tuple[Response, int]:
+    try:
+        session.clear()
+        return (
+            jsonify({'message': 'Successfully logged out'}),
+            200
+        )
+    except Exception as e:
+        return (
+            jsonify({'error': str(e)}),
+            400
+        )
+    
 @app.route("/user/dashboard", methods=['GET'])
 @Authenticator.authenticate_session
 def load_user_dashboard() -> Tuple[Response, int]:
@@ -165,7 +180,7 @@ def load_user_dashboard() -> Tuple[Response, int]:
                     task_dict = dict(id=task.id, name=task.name, points=task.points, completed=task.completed)
                     
                     for note in task.work_notes:
-                        note_dict = dict(id=note.id, content=note.content, created_at=task.created_at)
+                        note_dict = dict(id=note.id, content=note.content, created_at=note.created_at)
                         note_list.append(note_dict)
                     
                     task_dict['notes'] = note_list
@@ -187,14 +202,17 @@ def load_user_dashboard() -> Tuple[Response, int]:
             400
         ) 
 
-
 @app.route("/projects", methods=['POST'])
 @Authenticator.authenticate_session
 def add_project() -> Tuple[Response, int]:
     data = request.get_json()
     user_id= session['user_id']
+    if data.get('name') is None:
+        return (
+            jsonify({'error': 'name is required'}),
+            400
+        )
     try:
-        
         project = Project(
             name=data['name'],
             description=data.get('description'),
@@ -213,7 +231,7 @@ def add_project() -> Tuple[Response, int]:
             400
         )
 
-@app.route("/projects/<int:project_id>", methods=['PATCH','DELETE'])
+@app.route("/projects/<int:project_id>", methods=['GET','PATCH','DELETE'])
 @Authenticator.authenticate_session
 def handle_project(project_id) -> Tuple[Response, int]:
     user_id=session['user_id']
@@ -243,6 +261,11 @@ def handle_project(project_id) -> Tuple[Response, int]:
                 jsonify({"project": {"id": project.id, "name": project.name, "description": project.description}}),
                 200
             )
+        elif request.method == 'GET':
+            return (
+                jsonify({"project": {"id": project.id, "name": project.name, "description": project.description}}),
+                200
+            )
         else:
             return (
                 jsonify({"error": "invalid http method"}),
@@ -255,14 +278,19 @@ def handle_project(project_id) -> Tuple[Response, int]:
             400
         )
 
-
 @app.route("/projects/<int:project_id>/features", methods=['POST'])
 @Authenticator.authenticate_session
 def add_feature(project_id) -> Tuple[Response, int]:
     data = request.get_json()
     user_id = session['user_id']
+    
+    if data.get('name') is None:
+        return (
+            jsonify({'error': 'name is required'}),
+            400
+        )
+    
     project = g.db.query(Project).filter(Project.parent_userid ==  user_id, Project.id == project_id).first()
-
     if not project:
         return (
             jsonify({"error": "project not found"}),
@@ -279,7 +307,7 @@ def add_feature(project_id) -> Tuple[Response, int]:
         g.db.flush()
         return (
             jsonify({'feature': {'id':feature.id, 'project_id': feature.project_id, 'name': feature.name, 'description': feature.description}}),
-            200
+            201
         )
     except Exception as e:
         return (
@@ -287,7 +315,7 @@ def add_feature(project_id) -> Tuple[Response, int]:
             400
         )
 
-@app.route("/features/<int:feature_id>", methods=['DELETE', 'PATCH'])
+@app.route("/features/<int:feature_id>", methods=['GET','DELETE', 'PATCH'])
 @Authenticator.authenticate_session
 def handle_feature(feature_id) -> Tuple[Response, int]:
     user_id = session['user_id']
@@ -318,6 +346,11 @@ def handle_feature(feature_id) -> Tuple[Response, int]:
                 jsonify({'feature': {'id':feature.id, 'project_id': feature.project_id, 'name': feature.name, 'description': feature.description}}),
                 200
             )
+        elif request.method == 'GET':
+            return (
+                jsonify({'feature': {'id':feature.id, 'project_id': feature.project_id, 'name': feature.name, 'description': feature.description}}),
+                200
+            )
         else:
             return (
                 jsonify({"error": "invalid http method"}),
@@ -329,15 +362,19 @@ def handle_feature(feature_id) -> Tuple[Response, int]:
             400
         )
 
-
-
 @app.route("/features/<int:feature_id>/tasks", methods=['POST'])
 @Authenticator.authenticate_session
 def add_task(feature_id) -> Tuple[Response, int]:
     data = request.get_json()
     user_id = session['user_id']
+    
+    if data.get('name') is None:
+        return (
+            jsonify({'error': 'name is required'}),
+            400
+        )
+    
     feature = g.db.query(Feature).join(Project).filter(Feature.id == feature_id, Project.parent_userid == user_id).first()
-
     if not feature:
         return (
             jsonify({"error": "feature not found"}),
@@ -364,7 +401,7 @@ def add_task(feature_id) -> Tuple[Response, int]:
             400
         )
 
-@app.route("/tasks/<int:task_id>", methods=['DELETE', 'PATCH'])
+@app.route("/tasks/<int:task_id>", methods=['GET', 'DELETE', 'PATCH'])
 @Authenticator.authenticate_session
 def handle_task(task_id) -> Tuple[Response, int]:
     user_id = session['user_id']
@@ -397,6 +434,11 @@ def handle_task(task_id) -> Tuple[Response, int]:
                 jsonify({'task': {'id':task.id, 'feature_id': task.feature_id, 'name': task.name, 'description': task.description}}),
                 200
             )
+        elif request.method == 'GET':
+            return (
+                jsonify({'task': {'id':task.id, 'feature_id': task.feature_id, 'name': task.name, 'description': task.description}}),
+                200
+            )
         else:
             return (
                 jsonify({"error": "invalid http method"}),
@@ -407,11 +449,18 @@ def handle_task(task_id) -> Tuple[Response, int]:
             jsonify({'err': str(e)}),
             400
         )
+    
 @app.route("/tasks/<int:task_id>/notes", methods=['POST'])
 @Authenticator.authenticate_session
 def add_note(task_id) -> Tuple[Response, int]:
     data = request.get_json()
     user_id = session['user_id']
+    if not data.get('content'):
+        return (
+            jsonify({'error': 'Content is required'}), 
+            400
+        )
+
     task = g.db.query(Task).join(Feature).join(Project).filter(Task.id == task_id, Project.parent_userid == user_id).first()
     
     if not task:
@@ -439,7 +488,7 @@ def add_note(task_id) -> Tuple[Response, int]:
             400
         )
     
-@app.route("/notes/<int:note_id>", methods=['PATCH', 'DELETE'])
+@app.route("/notes/<int:note_id>", methods=['GET','PATCH', 'DELETE'])
 @Authenticator.authenticate_session
 def handle_note(note_id) -> Tuple[Response, int]:
     user_id = session['user_id']
@@ -467,6 +516,11 @@ def handle_note(note_id) -> Tuple[Response, int]:
                 jsonify({"note": {"id": note.id, "task_id": note.task_id, "content": note.content}}),
                 200
             )
+        elif request.method == 'GET':
+            return (
+                jsonify({"note": {"id": note.id, "task_id": note.task_id, "content": note.content}}),
+                200
+            )   
         else:
             return (
                 jsonify({"error": "invalid http method"}),
@@ -477,6 +531,6 @@ def handle_note(note_id) -> Tuple[Response, int]:
             jsonify({'err': str(e)}),
             400
         )
-    
+   
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
