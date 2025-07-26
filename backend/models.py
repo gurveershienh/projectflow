@@ -9,12 +9,6 @@ from sqlalchemy.sql import func
 class Base(DeclarativeBase):
     pass
 
-class Priority(enum.Enum):
-    crit = 'Critical'
-    high = 'High'
-    med = 'Medium'
-    low = 'Low'
-    opt = 'Optional'
 
 class User(Base):
     __tablename__ = "user_accounts"
@@ -72,7 +66,6 @@ class Feature(Base):
 
     description: Mapped[str] = mapped_column(Text, nullable=True)
     task_list: Mapped[List["Task"]] = relationship(back_populates="parent_feature", cascade="all, delete-orphan")
-    priority: Mapped[Enum] =  mapped_column(Enum(Priority), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -103,7 +96,6 @@ class Task(Base):
 
     description: Mapped[str] = mapped_column(Text, nullable=True)
     work_notes: Mapped[List["Note"]] = relationship(back_populates="parent_task", cascade="all, delete-orphan")
-    priority: Mapped[Enum] =  mapped_column(Enum(Priority), nullable=True)
     points: Mapped[int] = mapped_column(Integer, default=1)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
 
