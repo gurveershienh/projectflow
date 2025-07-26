@@ -1,7 +1,6 @@
 import math
-import enum
 from typing import List
-from sqlalchemy import Column, DateTime, Text, String, Integer, ForeignKey, Enum, Boolean, CheckConstraint
+from sqlalchemy import Column, DateTime, Text, String, Integer, ForeignKey, Boolean, CheckConstraint
 from sqlalchemy.orm import Mapped, DeclarativeBase, mapped_column, relationship
 from sqlalchemy.sql import func
 
