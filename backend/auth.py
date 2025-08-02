@@ -31,10 +31,23 @@ class Authenticator(PasswordHasher):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if 'user_id' not in session:
-                return (
-                    jsonify({'error': 'Must be logged in'}), 
-                    401
-                )
-            else:
-                return f(*args, **kwargs)
+                raise AuthenticationError("Must be logged in")
+            return f(*args, **kwargs)
         return decorated_function
+    
+    @staticmethod
+    def check_authorization(f):
+        #Only run on routes with user_id as a parameter. Service level authorization is performed via joins. 
+        #Might update routes to take user_id for better service performance, but for now we move.
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if kwargs.get('user_id') != session['user_id']: 
+                raise AuthorizationError("Access denied")
+            return f(*args, **kwargs)
+        return decorated_function         
+
+class AuthenticationError(Exception):
+    pass
+
+class AuthorizationError(Exception):
+    pass
