@@ -33,8 +33,6 @@ class FeatureService(BaseService):
     def create_feature(self, data: dict, project_id):
         if not data.get('name'):
             raise ValueError("Name is required")
-        if not data.get('project_id'):
-            raise ValueError("Project id is required")
         
         feature = Feature(
             name=data['name'],
